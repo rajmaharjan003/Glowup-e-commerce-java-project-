@@ -7,7 +7,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class GlowupApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(GlowupApplication.class, args);
-    }
 
+        SpringApplication.run(
+                GlowupApplication.class,
+                args
+        );
+    }
 }

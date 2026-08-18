@@ -1,7 +1,7 @@
 package io.virinchi.glowup.controller;
 
-import com.glowup.entity.Order;
-import com.glowup.service.OrderService;
+import io.virinchi.glowup.entity.Order;
+import io.virinchi.glowup.service.OrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

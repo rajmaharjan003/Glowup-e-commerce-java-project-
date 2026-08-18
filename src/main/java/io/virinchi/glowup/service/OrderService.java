@@ -1,7 +1,7 @@
 package io.virinchi.glowup.service;
 
-import com.glowup.entity.Order;
-import com.glowup.repository.OrderRepository;
+import io.virinchi.glowup.entity.Order;
+import io.virinchi.glowup.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 
 @Service

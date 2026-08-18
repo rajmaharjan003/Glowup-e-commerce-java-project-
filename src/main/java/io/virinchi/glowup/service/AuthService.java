@@ -35,8 +35,6 @@ public class AuthService {
 
     public AuthResponse signup(
             SignupRequest request) {
-
-
         // Check email
 
         if (userRepository
@@ -46,8 +44,6 @@ public class AuthService {
                     "Email already registered"
             );
         }
-
-
         // Check phone
 
         if (userRepository
@@ -57,8 +53,6 @@ public class AuthService {
                     "Phone number already registered"
             );
         }
-
-
         // Create user
 
         User user = new User();
@@ -74,8 +68,6 @@ public class AuthService {
         user.setPhoneNumber(
                 request.getPhone()
         );
-
-
         // Hash password
 
         user.setPassword(
@@ -83,30 +75,22 @@ public class AuthService {
                         request.getPassword()
                 )
         );
-
-
         // Save database
 
         User savedUser =
                 userRepository.save(user);
-
-
         return new AuthResponse(
                 "Signup successful",
                 savedUser.getFullName(),
                 savedUser.getEmail()
         );
     }
-
-
     // ==========================================
     // LOGIN
     // ==========================================
 
     public AuthResponse login(
             LoginRequest request) {
-
-
         User user =
                 userRepository
                         .findByEmail(
@@ -117,25 +101,18 @@ public class AuthService {
                                         "Invalid email or password"
                                 )
                         );
-
-
         // Check password
-
         boolean passwordMatches =
                 passwordEncoder.matches(
                         request.getPassword(),
                         user.getPassword()
                 );
-
-
         if (!passwordMatches) {
 
             throw new RuntimeException(
                     "Invalid email or password"
             );
         }
-
-
         return new AuthResponse(
                 "Login successful",
                 user.getFullName(),

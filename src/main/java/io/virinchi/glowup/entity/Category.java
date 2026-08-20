@@ -2,6 +2,8 @@ package io.virinchi.glowup.entity;
 
 import jakarta.persistence.*;
 
+import java.util.List;
+
 @Entity
 @Table(name = "categories")
 public class Category {
@@ -16,6 +18,10 @@ public class Category {
     private String description;
 
     private String image;
+
+    @OneToMany(mappedBy = "Category",cascade = CascadeType.ALL)
+
+    private List<Product> productList;
 
     public Category() {
     }

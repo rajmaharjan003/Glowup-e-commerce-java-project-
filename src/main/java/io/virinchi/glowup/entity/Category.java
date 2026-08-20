@@ -19,7 +19,7 @@ public class Category {
 
     private String image;
 
-    @OneToMany(mappedBy = "Category",cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "category",cascade = CascadeType.ALL)
 
     private List<Product> productList;
 

@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+
 public class Product {
 
     @Id
@@ -42,5 +43,4 @@ public class Product {
     @JoinColumn(name = "category_id")
     private Category category;
 
-
-}
+     }

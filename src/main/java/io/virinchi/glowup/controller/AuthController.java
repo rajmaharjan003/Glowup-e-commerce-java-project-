@@ -5,12 +5,14 @@ import io.virinchi.glowup.dto.LoginRequest;
 import io.virinchi.glowup.dto.SignupRequest;
 import io.virinchi.glowup.service.AuthService;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@Slf4j
 @CrossOrigin(
         origins = {
                 "http://localhost:5500",
@@ -37,6 +39,8 @@ public class AuthController {
     @PostMapping("/signup")
     public ResponseEntity<?> signup(
             @RequestBody SignupRequest request) {
+
+        log.info("signup request: {}", request);
 
         try {
 

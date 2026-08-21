@@ -5,86 +5,52 @@ import io.virinchi.glowup.dto.LoginRequest;
 import io.virinchi.glowup.dto.SignupRequest;
 import io.virinchi.glowup.service.AuthService;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@Slf4j
-@CrossOrigin(
-        origins = {
-                "http://localhost:5500",
-                "http://127.0.0.1:5500"
-        }
-)
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private final AuthService authService;
 
-
-    public AuthController(
-            AuthService authService) {
-
-        this.authService =
-                authService;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
-
 
     // ==========================================
     // SIGNUP
     // ==========================================
-
-    @PostMapping("/signup")
-    public ResponseEntity<?> signup(
-            @RequestBody SignupRequest request) {
-
-        log.info("signup request: {}", request);
+    @PostMapping({"/signup", "/api/auth/signup"})
+    public ResponseEntity<AuthResponse> signup(@RequestBody SignupRequest request) {
+        log.info("Received signup request for email: {}", request != null ? request.getEmail() : null);
 
         try {
-
-            AuthResponse response =
-                    authService.signup(request);
-
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(response);
-
+            AuthResponse response = authService.signup(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (RuntimeException e) {
-
-            return ResponseEntity
-                    .badRequest()
-                    .body(
-                            e.getMessage()
-                    );
+            log.error("Signup error: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(new AuthResponse(e.getMessage(), null, null, null, null));
         }
     }
-
 
     // ==========================================
     // LOGIN
     // ==========================================
-
-    @PostMapping("/login")
-    public ResponseEntity<?> login(
-            @RequestBody LoginRequest request) {
+    @PostMapping({"/login", "/api/auth/login"})
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+        log.info("Received login request for email: {}", request != null ? request.getEmail() : null);
 
         try {
-
-            AuthResponse response =
-                    authService.login(request);
-
-            return ResponseEntity
-                    .ok(response);
-
+            AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
-
-            return ResponseEntity
-                    .status(HttpStatus.UNAUTHORIZED)
-                    .body(
-                            e.getMessage()
-                    );
+            log.error("Login error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new AuthResponse(e.getMessage(), null, null, null, null));
         }
     }
 }

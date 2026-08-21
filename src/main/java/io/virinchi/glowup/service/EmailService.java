@@ -1,7 +1,10 @@
 package io.virinchi.glowup.service;
 
+import io.virinchi.glowup.entity.Order;
+
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+
 import org.springframework.stereotype.Service;
 
 @Service
@@ -9,44 +12,98 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
 
-    public EmailService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+
+    public EmailService(
+            JavaMailSender mailSender
+    ) {
+
+        this.mailSender =
+                mailSender;
     }
 
+
     public void sendOrderConfirmation(
-            String customerEmail,
-            String customerName,
-            Long orderId,
-            double amount) {
+            String to,
+            Order order
+    ) {
 
-        SimpleMailMessage message = new SimpleMailMessage();
+        SimpleMailMessage message =
+                new SimpleMailMessage();
 
-        message.setFrom("yourglowupemail@gmail.com");
-        message.setTo(customerEmail);
+
+        message.setTo(to);
 
         message.setSubject(
-                "GlowUp Nepal - Order Confirmation #" + orderId
+                "GlowUp Nepal - Order #" +
+                        order.getId() +
+                        " Confirmed"
         );
 
-        String emailBody =
-                "Hello " + customerName + ",\n\n" +
+
+        String body =
+
+                "Hello " +
+                        order.getFirstName() +
+                        ",\n\n" +
 
                         "Thank you for shopping with GlowUp Nepal!\n\n" +
 
                         "Your order has been successfully placed.\n\n" +
 
-                        "Order ID: #" + orderId + "\n" +
-                        "Total Amount: Rs. " + amount + "\n" +
-                        "Order Status: CONFIRMED\n\n" +
+                        "Order ID: #" +
+                        order.getId() +
+                        "\n" +
 
-                        "We will notify you when your order is shipped.\n\n" +
+                        "Total Amount: Rs. " +
+                        order.getTotalAmount() +
+                        "\n" +
 
-                        "Thank you for choosing GlowUp Nepal!\n\n" +
-                        "Regards,\n" +
-                        "GlowUp Nepal Team";
+                        "Payment Method: " +
+                        order.getPaymentMethod() +
+                        "\n" +
 
-        message.setText(emailBody);
+                        "Delivery Address: " +
+                        order.getAddress() +
+                        ", " +
+                        order.getCity() +
+                        "\n\n" +
 
-        mailSender.send(message);
+                        "Your order status is currently: " +
+                        order.getOrderStatus() +
+                        "\n\n" +
+
+                        "Thank you for choosing GlowUp Nepal.\n\n" +
+
+                        "GlowUp Nepal";
+
+        message.setText(body);
+
+
+        mailSender.send(
+                message
+        );
+    }
+
+
+    public void sendTestEmail(
+            String to
+    ) {
+
+        SimpleMailMessage message =
+                new SimpleMailMessage();
+
+        message.setTo(to);
+
+        message.setSubject(
+                "GlowUp Email Test"
+        );
+
+        message.setText(
+                "Your GlowUp email configuration is working successfully."
+        );
+
+        mailSender.send(
+                message
+        );
     }
 }

@@ -17,14 +17,14 @@ public class User {
     private int id;
 
     @Column(nullable = false)
-    private String fullName;
-
-    @Column(nullable = false, unique = true)
-    private String email;
+    private String fullail;
 
     @Column(nullable = false, unique = true)
     private String phoneNumber;
 
     @Column(nullable = false)
-    private String password;
+    private String pasName;
+
+    @Column(nullable = false, unique = true)
+    private String emsword;
 }

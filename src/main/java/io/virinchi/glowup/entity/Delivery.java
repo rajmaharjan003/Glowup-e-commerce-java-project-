@@ -6,12 +6,12 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "deliveries")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Payment {
+public class Delivery {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,14 +32,13 @@ public class Payment {
 
 
     @Column(nullable = false)
-    private Double amount;
-
-
-    @Column(nullable = false)
     private String status;
 
 
-    private String transactionId;
+    private String trackingNumber;
+
+
+    private LocalDateTime estimatedDate;
 
 
     @Column(nullable = false)
@@ -53,7 +52,7 @@ public class Payment {
                 LocalDateTime.now();
 
         if (status == null) {
-            status = "PENDING";
+            status = "PREPARING";
         }
     }
 }

@@ -1,6 +1,7 @@
 package io.virinchi.glowup.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -8,14 +9,19 @@ import java.util.List;
 
 @Entity
 @Table(name = "orders")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Order {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(nullable = false)
     private String firstName;
@@ -26,41 +32,37 @@ public class Order {
     @Column(nullable = false)
     private String phone;
 
+    private String alternatePhone;
+
     @Column(nullable = false)
     private String address;
 
+    @Column(nullable = false)
     private String city;
 
     private String province;
 
-    @Column(name = "delivery_notes")
     private String deliveryNotes;
-
-    @Column(name = "delivery_method", nullable = false)
-    private String deliveryMethod;
-
-    @Column(name = "payment_method", nullable = false)
-    private String paymentMethod;
 
     @Column(nullable = false)
     private Double subtotal;
 
     @Column(nullable = false)
-    private Double discount;
-
-    @Column(name = "delivery_charge", nullable = false)
-    private Double deliveryCharge;
+    private Double deliveryFee;
 
     @Column(nullable = false)
-    private Double vat;
+    private Double totalAmount;
 
     @Column(nullable = false)
-    private Double total;
+    private String paymentMethod;
 
     @Column(nullable = false)
-    private String status;
+    private String paymentStatus;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(nullable = false)
+    private String orderStatus;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @OneToMany(
@@ -68,160 +70,24 @@ public class Order {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    private List<OrderItem> items = new ArrayList<>();
+    private List<OrderItem> items =
+            new ArrayList<>();
 
-    public Order() {
-    }
 
-    public Long getId() {
-        return id;
-    }
+    @PrePersist
+    public void onCreate() {
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+        createdAt =
+                LocalDateTime.now();
 
-    public Long getUserId() {
-        return userId;
-    }
+        if (paymentStatus == null) {
+            paymentStatus =
+                    "PENDING";
+        }
 
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public String getFirstName() {
-        return firstName;
-    }
-
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
-
-    public String getLastName() {
-        return lastName;
-    }
-
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public String getAddress() {
-        return address;
-    }
-
-    public void setAddress(String address) {
-        this.address = address;
-    }
-
-    public String getCity() {
-        return city;
-    }
-
-    public void setCity(String city) {
-        this.city = city;
-    }
-
-    public String getProvince() {
-        return province;
-    }
-
-    public void setProvince(String province) {
-        this.province = province;
-    }
-
-    public String getDeliveryNotes() {
-        return deliveryNotes;
-    }
-
-    public void setDeliveryNotes(String deliveryNotes) {
-        this.deliveryNotes = deliveryNotes;
-    }
-
-    public String getDeliveryMethod() {
-        return deliveryMethod;
-    }
-
-    public void setDeliveryMethod(String deliveryMethod) {
-        this.deliveryMethod = deliveryMethod;
-    }
-
-    public String getPaymentMethod() {
-        return paymentMethod;
-    }
-
-    public void setPaymentMethod(String paymentMethod) {
-        this.paymentMethod = paymentMethod;
-    }
-
-    public Double getSubtotal() {
-        return subtotal;
-    }
-
-    public void setSubtotal(Double subtotal) {
-        this.subtotal = subtotal;
-    }
-
-    public Double getDiscount() {
-        return discount;
-    }
-
-    public void setDiscount(Double discount) {
-        this.discount = discount;
-    }
-
-    public Double getDeliveryCharge() {
-        return deliveryCharge;
-    }
-
-    public void setDeliveryCharge(Double deliveryCharge) {
-        this.deliveryCharge = deliveryCharge;
-    }
-
-    public Double getVat() {
-        return vat;
-    }
-
-    public void setVat(Double vat) {
-        this.vat = vat;
-    }
-
-    public Double getTotal() {
-        return total;
-    }
-
-    public void setTotal(Double total) {
-        this.total = total;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public List<OrderItem> getItems() {
-        return items;
-    }
-
-    public void setItems(List<OrderItem> items) {
-        this.items = items;
+        if (orderStatus == null) {
+            orderStatus =
+                    "PLACED";
+        }
     }
 }

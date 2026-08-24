@@ -162,4 +162,15 @@ public class ReviewService {
         }
         return responses;
     }
+
+    // ==========================================
+    // DELETE REVIEW (FOR ADMIN)
+    // ==========================================
+    @Transactional
+    public void deleteReview(Long id) {
+        if (id != null && reviewRepository.existsById(id)) {
+            reviewRepository.deleteById(id);
+            log.info("Review #{} deleted by admin", id);
+        }
+    }
 }

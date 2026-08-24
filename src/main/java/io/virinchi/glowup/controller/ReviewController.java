@@ -44,4 +44,13 @@ public class ReviewController {
     public ResponseEntity<List<ReviewResponse>> getAllReviews() {
         return ResponseEntity.ok(reviewService.getAllReviews());
     }
+
+    // ==========================================
+    // DELETE REVIEW (FOR ADMIN DASHBOARD)
+    // ==========================================
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteReview(@PathVariable Long id) {
+        reviewService.deleteReview(id);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -47,7 +47,7 @@ public class Order {
     @Column(nullable = false)
     private Double subtotal = 0.0;
 
-    @Column(nullable = false)
+    @Column(name = "delivery_charge", nullable = true)
     private Double deliveryFee = 0.0;
 
     @Column(nullable = false)

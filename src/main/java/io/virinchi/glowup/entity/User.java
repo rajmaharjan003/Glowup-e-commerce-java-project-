@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "users")
 @Data
@@ -31,11 +33,26 @@ public class User {
     @Column(nullable = false)
     private String role = "CUSTOMER";
 
-    @Column(nullable = false)
-    private boolean isVerified = false;
+    @Column(nullable = true)
+    private Boolean isVerified = true;
 
     @Column(nullable = true)
     private String verificationToken;
+
+    @Column(nullable = true)
+    private String resetOtp;
+
+    @Column(nullable = true)
+    private LocalDateTime resetOtpExpiry;
+
+    @Column(nullable = true)
+    private String authProvider = "LOCAL";
+
+    @Column(nullable = true)
+    private String googleId;
+
+    @Column(nullable = true)
+    private String avatarUrl;
 
     public Long getId() {
         return id;
@@ -85,11 +102,15 @@ public class User {
         this.role = role;
     }
 
-    public boolean isVerified() {
+    public Boolean isVerified() {
+        return isVerified != null && isVerified;
+    }
+
+    public Boolean getIsVerified() {
         return isVerified;
     }
 
-    public void setVerified(boolean verified) {
+    public void setVerified(Boolean verified) {
         isVerified = verified;
     }
 
@@ -99,5 +120,45 @@ public class User {
 
     public void setVerificationToken(String verificationToken) {
         this.verificationToken = verificationToken;
+    }
+
+    public String getResetOtp() {
+        return resetOtp;
+    }
+
+    public void setResetOtp(String resetOtp) {
+        this.resetOtp = resetOtp;
+    }
+
+    public LocalDateTime getResetOtpExpiry() {
+        return resetOtpExpiry;
+    }
+
+    public void setResetOtpExpiry(LocalDateTime resetOtpExpiry) {
+        this.resetOtpExpiry = resetOtpExpiry;
+    }
+
+    public String getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(String authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    public String getGoogleId() {
+        return googleId;
+    }
+
+    public void setGoogleId(String googleId) {
+        this.googleId = googleId;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

@@ -42,6 +42,7 @@ public class OrderController {
             @RequestBody Map<String, String> body
     ) {
         String status = body != null ? body.get("status") : "PENDING";
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, status));
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(orderService.updateOrderStatus(id, status, reason));
     }
 }

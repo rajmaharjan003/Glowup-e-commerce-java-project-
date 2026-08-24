@@ -1,8 +1,6 @@
 package io.virinchi.glowup.service;
 
-import io.virinchi.glowup.dto.AuthResponse;
-import io.virinchi.glowup.dto.LoginRequest;
-import io.virinchi.glowup.dto.SignupRequest;
+import io.virinchi.glowup.dto.*;
 import io.virinchi.glowup.entity.User;
 import io.virinchi.glowup.repository.UserRepository;
 
@@ -11,6 +9,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.Random;
+
 @Service
 public class AuthService {
 
@@ -18,6 +19,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final Random random = new Random();
 
     public AuthService(
             UserRepository userRepository,
@@ -36,29 +38,29 @@ public class AuthService {
             throw new RuntimeException("Signup request cannot be empty");
         }
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            throw new RuntimeException("Email is required");
+            throw new RuntimeException("Email address is required.");
         }
-        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
-            throw new RuntimeException("Password is required");
+        if (request.getPassword() == null || request.getPassword().trim().length() < 6) {
+            throw new RuntimeException("Password must be at least 6 characters long.");
         }
 
         String email = request.getEmail().trim().toLowerCase();
 
         // Check email uniqueness
         if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("Email is already registered. Please log in instead.");
+            throw new RuntimeException("This email (" + email + ") is already registered. Please log in instead.");
         }
 
         // Check phone if provided
         String phone = request.getPhone() != null ? request.getPhone().trim() : null;
         if (phone != null && !phone.isEmpty()) {
             if (userRepository.existsByPhoneNumber(phone)) {
-                throw new RuntimeException("Phone number is already registered.");
+                throw new RuntimeException("Phone number (" + phone + ") is already registered.");
             }
         }
 
-        String fullName = (request.getName() != null && !request.getName().trim().isEmpty()) 
-                ? request.getName().trim() 
+        String fullName = (request.getName() != null && !request.getName().trim().isEmpty())
+                ? request.getName().trim()
                 : email.split("@")[0];
 
         // Create user
@@ -67,6 +69,8 @@ public class AuthService {
         user.setEmail(email);
         user.setPhoneNumber(phone);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setAuthProvider("LOCAL");
+        user.setVerified(true);
 
         // Assign role: check if admin email
         if (email.contains("admin") || email.equals("admin@glowup.com") || email.equals("rajmaharjan738@gmail.com")) {
@@ -79,7 +83,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
         log.info("New user registered successfully: id={}, email={}, role={}", savedUser.getId(), savedUser.getEmail(), savedUser.getRole());
 
-        // Send welcome email notification asynchronously/safely
+        // Send registration confirmation email
         try {
             emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getFullName());
         } catch (Exception e) {
@@ -103,16 +107,18 @@ public class AuthService {
             throw new RuntimeException("Login request cannot be empty");
         }
         if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
-            throw new RuntimeException("Email is required");
+            throw new RuntimeException("Email or phone is required");
         }
         if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
             throw new RuntimeException("Password is required");
         }
 
-        String email = request.getEmail().trim().toLowerCase();
+        String input = request.getEmail().trim().toLowerCase();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Invalid email or password."));
+        // Support login by email or phone
+        User user = userRepository.findByEmail(input)
+                .or(() -> userRepository.findByPhoneNumber(input))
+                .orElseThrow(() -> new RuntimeException("No account found with " + input + ". Please check your credentials or sign up."));
 
         // Check password
         boolean passwordMatches = passwordEncoder.matches(
@@ -121,12 +127,12 @@ public class AuthService {
         );
 
         if (!passwordMatches) {
-            throw new RuntimeException("Invalid email or password.");
+            throw new RuntimeException("Incorrect password. Please try again or use Forgot Password.");
         }
 
         String role = user.getRole();
-        if (role == null || role.trim().isEmpty() || email.contains("admin") || email.equals("admin@glowup.com") || email.equals("rajmaharjan738@gmail.com")) {
-            if (email.contains("admin") || email.equals("admin@glowup.com") || email.equals("rajmaharjan738@gmail.com")) {
+        if (role == null || role.trim().isEmpty() || input.contains("admin") || input.equals("admin@glowup.com") || input.equals("rajmaharjan738@gmail.com")) {
+            if (input.contains("admin") || input.equals("admin@glowup.com") || input.equals("rajmaharjan738@gmail.com")) {
                 role = "ADMIN";
             } else if (role == null || role.trim().isEmpty()) {
                 role = "CUSTOMER";
@@ -142,6 +148,170 @@ public class AuthService {
                 user.getFullName(),
                 user.getEmail(),
                 role,
+                "glowup_token_" + user.getId() + "_" + System.currentTimeMillis()
+        );
+    }
+
+    // ==========================================
+    // GOOGLE AUTHENTICATION
+    // ==========================================
+    public AuthResponse googleAuth(GoogleAuthRequest request) {
+        if (request == null || request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+            throw new RuntimeException("Google authentication email is required");
+        }
+
+        String email = request.getEmail().trim().toLowerCase();
+        String name = (request.getName() != null && !request.getName().trim().isEmpty())
+                ? request.getName().trim()
+                : email.split("@")[0];
+
+        User user = userRepository.findByEmail(email).orElse(null);
+        boolean isNewUser = false;
+
+        if (user == null) {
+            isNewUser = true;
+            user = new User();
+            user.setEmail(email);
+            user.setFullName(name);
+            user.setPhoneNumber(request.getPhone() != null && !request.getPhone().trim().isEmpty() ? request.getPhone().trim() : "9800000000");
+            user.setPassword(passwordEncoder.encode("google_oauth_" + System.currentTimeMillis()));
+            user.setAuthProvider("GOOGLE");
+            user.setGoogleId(request.getGoogleId());
+            user.setAvatarUrl(request.getPicture());
+            user.setVerified(true);
+
+            if (email.contains("admin") || email.equals("admin@glowup.com") || email.equals("rajmaharjan738@gmail.com")) {
+                user.setRole("ADMIN");
+            } else {
+                user.setRole("CUSTOMER");
+            }
+
+            user = userRepository.save(user);
+            log.info("Google user registered: id={}, email={}", user.getId(), user.getEmail());
+
+            // Send registration confirmation email
+            try {
+                emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
+            } catch (Exception e) {
+                log.warn("Could not send welcome email for Google user: {}", e.getMessage());
+            }
+        } else {
+            // Existing user - update Google info if missing
+            if (request.getGoogleId() != null) user.setGoogleId(request.getGoogleId());
+            if (request.getPicture() != null) user.setAvatarUrl(request.getPicture());
+            user.setVerified(true);
+            userRepository.save(user);
+            log.info("Google user logged in: id={}, email={}", user.getId(), user.getEmail());
+        }
+
+        return new AuthResponse(
+                isNewUser ? "Account created via Google" : "Google login successful",
+                user.getFullName(),
+                user.getEmail(),
+                user.getRole(),
+                "glowup_token_" + user.getId() + "_" + System.currentTimeMillis()
+        );
+    }
+
+    // ==========================================
+    // FORGOT PASSWORD: SEND OTP
+    // ==========================================
+    public String sendForgotPasswordOtp(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new RuntimeException("Email is required for password reset");
+        }
+
+        String cleanEmail = email.trim().toLowerCase();
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new RuntimeException("No account registered with " + cleanEmail));
+
+        // Generate 4-digit OTP
+        int code = 1000 + random.nextInt(9000);
+        String otp = String.valueOf(code);
+
+        user.setResetOtp(otp);
+        user.setResetOtpExpiry(LocalDateTime.now().plusMinutes(10));
+        userRepository.save(user);
+
+        log.info("Generated password reset OTP for {}: {}", cleanEmail, otp);
+
+        // Send OTP email
+        emailService.sendPasswordResetOtpEmail(cleanEmail, user.getFullName(), otp);
+
+        return "Verification code has been sent to " + cleanEmail;
+    }
+
+    // ==========================================
+    // VERIFY OTP
+    // ==========================================
+    public boolean verifyResetOtp(String email, String otp) {
+        if (email == null || otp == null) {
+            throw new RuntimeException("Email and verification code are required");
+        }
+
+        String cleanEmail = email.trim().toLowerCase();
+        String cleanOtp = otp.trim();
+
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getResetOtp() == null || !user.getResetOtp().equals(cleanOtp)) {
+            throw new RuntimeException("Invalid verification code. Please check and re-enter.");
+        }
+
+        if (user.getResetOtpExpiry() == null || user.getResetOtpExpiry().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Verification code has expired. Please request a new code.");
+        }
+
+        return true;
+    }
+
+    // ==========================================
+    // RESET PASSWORD
+    // ==========================================
+    public AuthResponse resetPassword(ResetPasswordRequest request) {
+        if (request == null || request.getEmail() == null || request.getOtp() == null || request.getNewPassword() == null) {
+            throw new RuntimeException("All fields are required");
+        }
+
+        if (request.getNewPassword().trim().length() < 6) {
+            throw new RuntimeException("New password must be at least 6 characters long.");
+        }
+
+        String cleanEmail = request.getEmail().trim().toLowerCase();
+        String cleanOtp = request.getOtp().trim();
+
+        User user = userRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getResetOtp() == null || !user.getResetOtp().equals(cleanOtp)) {
+            throw new RuntimeException("Invalid verification code.");
+        }
+
+        if (user.getResetOtpExpiry() == null || user.getResetOtpExpiry().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Verification code has expired.");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword().trim()));
+        user.setResetOtp(null);
+        user.setResetOtpExpiry(null);
+        userRepository.save(user);
+
+        log.info("Password successfully reset for user: {}", cleanEmail);
+
+        // Send confirmation email
+        try {
+            emailService.sendPasswordChangedNotification(cleanEmail, user.getFullName());
+        } catch (Exception e) {
+            log.warn("Could not send password changed confirmation email: {}", e.getMessage());
+        }
+
+        return new AuthResponse(
+                "Password updated successfully",
+                user.getFullName(),
+                user.getEmail(),
+                user.getRole(),
                 "glowup_token_" + user.getId() + "_" + System.currentTimeMillis()
         );
     }

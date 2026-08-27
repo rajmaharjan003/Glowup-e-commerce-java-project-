@@ -240,19 +240,46 @@ public class EmailService {
     }
 
     // ==========================================
-    // 9. REVIEW NOTIFICATION EMAIL
+    // 9. REVIEW NOTIFICATIONS (ADMIN & CUSTOMER)
     // ==========================================
-    public void sendReviewNotification(String to, String reviewerName, String productName, int rating, String comment) {
-        String subject = "New Product Review Received: " + productName + " (" + rating + "★) 🌟";
-        String body = "Hello,\n\nA new customer review has been submitted on GlowUp Nepal!\n\n" +
+    public void sendAdminReviewNotification(String to, String reviewerName, String reviewerEmail, String productName, int rating, String comment) {
+        String subject = "🔔 [Admin Alert] New Review on " + productName + " (" + rating + "★)";
+        String body = "Dear Administrator,\n\n" +
+                "A customer has just submitted a new product review on GlowUp Nepal!\n\n" +
+                "----------------------------------------\n" +
+                "REVIEW DETAILS\n" +
+                "----------------------------------------\n" +
                 "Product: " + productName + "\n" +
-                "Reviewer: " + reviewerName + "\n" +
-                "Rating: " + rating + " / 5 Stars\n" +
-                "Comment: \"" + comment + "\"\n\n" +
-                "Thank you for sharing your valuable feedback with GlowUp Nepal.\n\n" +
-                "GlowUp Nepal Quality Team";
+                "Reviewer Name: " + (reviewerName != null ? reviewerName : "Customer") + "\n" +
+                "Reviewer Email: " + (reviewerEmail != null && !reviewerEmail.isEmpty() ? reviewerEmail : "N/A") + "\n" +
+                "Rating: " + rating + " / 5 Stars (" + "★".repeat(rating) + ")\n" +
+                "Review / Comment:\n" +
+                "\"" + comment + "\"\n" +
+                "Submitted At: " + java.time.LocalDateTime.now() + "\n" +
+                "----------------------------------------\n\n" +
+                "You can manage all reviews in your Admin Dashboard: http://localhost:8080/admin.html\n\n" +
+                "GlowUp Nepal Automated Notification System";
 
         sendEmail(to, subject, body);
+    }
+
+    public void sendCustomerReviewConfirmation(String to, String reviewerName, String productName, int rating) {
+        String subject = "Thank you for reviewing " + productName + " on GlowUp Nepal! 🌟";
+        String displayName = (reviewerName != null && !reviewerName.trim().isEmpty()) ? reviewerName : "Valued Customer";
+
+        String body = "Dear " + displayName + ",\n\n" +
+                "Thank you for taking the time to share your feedback on " + productName + " (" + rating + "★)!\n\n" +
+                "Your review helps thousands of shoppers in Nepal make confident purchase decisions.\n" +
+                "Our store administrator has been notified of your review.\n\n" +
+                "Keep exploring more exciting deals: http://localhost:8080/index.html\n\n" +
+                "Warm regards,\n" +
+                "GlowUp Nepal Community Team";
+
+        sendEmail(to, subject, body);
+    }
+
+    public void sendReviewNotification(String to, String reviewerName, String productName, int rating, String comment) {
+        sendAdminReviewNotification(to, reviewerName, "", productName, rating, comment);
     }
 
     // ==========================================

@@ -45,16 +45,61 @@ public class AuthService {
         }
 
         String email = request.getEmail().trim().toLowerCase();
+        String phone = request.getPhone() != null ? request.getPhone().trim() : null;
+        String cleanPhone = phone != null ? phone.replaceAll("[^0-9]", "") : null;
 
-        // Check email uniqueness
-        if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("This email (" + email + ") is already registered. Please log in instead.");
+        // Check if user already exists
+        User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (existingUser != null) {
+            // Check if this was an auto-created guest order account
+            boolean isGuest = "GUEST".equalsIgnoreCase(existingUser.getAuthProvider())
+                    || "guest_order_session".equals(existingUser.getPassword())
+                    || (existingUser.getPassword() != null && !existingUser.getPassword().startsWith("$2a$") && !existingUser.getPassword().startsWith("$2b$"));
+
+            if (isGuest) {
+                // Upgrade guest account to fully registered user
+                String fullName = (request.getName() != null && !request.getName().trim().isEmpty())
+                        ? request.getName().trim()
+                        : (existingUser.getFullName() != null ? existingUser.getFullName() : email.split("@")[0]);
+
+                existingUser.setFullName(fullName);
+                if (phone != null && !phone.isEmpty()) {
+                    existingUser.setPhoneNumber(phone);
+                }
+                existingUser.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+                existingUser.setAuthProvider("LOCAL");
+                existingUser.setVerified(true);
+
+                if (email.contains("admin") || email.equals("admin@glowup.com") || email.equals("rajmaharjan738@gmail.com")) {
+                    existingUser.setRole("ADMIN");
+                } else if (existingUser.getRole() == null || existingUser.getRole().trim().isEmpty()) {
+                    existingUser.setRole("CUSTOMER");
+                }
+
+                User savedUser = userRepository.save(existingUser);
+                log.info("Guest account upgraded to registered user: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+
+                try {
+                    emailService.sendWelcomeEmail(savedUser.getEmail(), savedUser.getFullName());
+                } catch (Exception e) {
+                    log.warn("Could not send welcome email: {}", e.getMessage());
+                }
+
+                return new AuthResponse(
+                        "Account created successfully",
+                        savedUser.getFullName(),
+                        savedUser.getEmail(),
+                        savedUser.getRole(),
+                        "glowup_token_" + savedUser.getId() + "_" + System.currentTimeMillis()
+                );
+            } else {
+                throw new RuntimeException("This email (" + email + ") is already registered. Please log in instead.");
+            }
         }
 
         // Check phone if provided
-        String phone = request.getPhone() != null ? request.getPhone().trim() : null;
         if (phone != null && !phone.isEmpty()) {
-            if (userRepository.existsByPhoneNumber(phone)) {
+            if (userRepository.existsByPhoneNumber(phone) || (cleanPhone != null && userRepository.existsByPhoneNumber(cleanPhone))) {
                 throw new RuntimeException("Phone number (" + phone + ") is already registered.");
             }
         }
@@ -68,7 +113,7 @@ public class AuthService {
         user.setFullName(fullName);
         user.setEmail(email);
         user.setPhoneNumber(phone);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
         user.setAuthProvider("LOCAL");
         user.setVerified(true);
 
@@ -113,26 +158,39 @@ public class AuthService {
             throw new RuntimeException("Password is required");
         }
 
-        String input = request.getEmail().trim().toLowerCase();
+        String input = request.getEmail().trim();
+        String lowerInput = input.toLowerCase();
+        String cleanPhone = input.replaceAll("[^0-9]", "");
 
-        // Support login by email or phone
-        User user = userRepository.findByEmail(input)
+        // Support login by email (case-insensitive) or phone
+        User user = userRepository.findByEmailIgnoreCase(lowerInput)
                 .or(() -> userRepository.findByPhoneNumber(input))
+                .or(() -> !cleanPhone.isEmpty() ? userRepository.findByPhoneNumber(cleanPhone) : java.util.Optional.empty())
                 .orElseThrow(() -> new RuntimeException("No account found with " + input + ". Please check your credentials or sign up."));
 
+        // If user was created via guest order without password setup
+        if ("guest_order_session".equals(user.getPassword())) {
+            throw new RuntimeException("An order was placed with this email as guest. Please click 'Create Account' (Sign Up) to set your password.");
+        }
+
         // Check password
-        boolean passwordMatches = passwordEncoder.matches(
-                request.getPassword(),
-                user.getPassword()
-        );
+        boolean passwordMatches = false;
+        try {
+            passwordMatches = passwordEncoder.matches(
+                    request.getPassword().trim(),
+                    user.getPassword()
+            );
+        } catch (Exception e) {
+            log.error("Password matching error for user {}: {}", user.getEmail(), e.getMessage());
+        }
 
         if (!passwordMatches) {
             throw new RuntimeException("Incorrect password. Please try again or use Forgot Password.");
         }
 
         String role = user.getRole();
-        if (role == null || role.trim().isEmpty() || input.contains("admin") || input.equals("admin@glowup.com") || input.equals("rajmaharjan738@gmail.com")) {
-            if (input.contains("admin") || input.equals("admin@glowup.com") || input.equals("rajmaharjan738@gmail.com")) {
+        if (role == null || role.trim().isEmpty() || lowerInput.contains("admin") || lowerInput.equals("admin@glowup.com") || lowerInput.equals("rajmaharjan738@gmail.com")) {
+            if (lowerInput.contains("admin") || lowerInput.equals("admin@glowup.com") || lowerInput.equals("rajmaharjan738@gmail.com")) {
                 role = "ADMIN";
             } else if (role == null || role.trim().isEmpty()) {
                 role = "CUSTOMER";

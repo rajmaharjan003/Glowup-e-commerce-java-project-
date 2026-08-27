@@ -99,12 +99,12 @@ public class ReviewService {
 
         // Trigger email notification to reviewer and store admin
         try {
-            // Send to reviewer if email is provided
+            // Send confirmation to reviewer if email is provided
             if (!email.isEmpty()) {
-                emailService.sendReviewNotification(email, reviewerName, finalProductName, rating, comment);
+                emailService.sendCustomerReviewConfirmation(email, reviewerName, finalProductName, rating);
             }
-            // Send to store admin
-            emailService.sendReviewNotification("rajmaharjan738@gmail.com", reviewerName, finalProductName, rating, comment);
+            // Send alert notification to store admin
+            emailService.sendAdminReviewNotification("rajmaharjan738@gmail.com", reviewerName, email, finalProductName, rating, comment);
         } catch (Exception e) {
             log.warn("Could not send review email notification: {}", e.getMessage());
         }

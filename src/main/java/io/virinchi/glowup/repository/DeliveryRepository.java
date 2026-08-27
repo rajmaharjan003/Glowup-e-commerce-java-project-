@@ -9,7 +9,7 @@ import java.util.Optional;
 public interface DeliveryRepository
         extends JpaRepository<Delivery, Long> {
 
-    Optional<Delivery> findByOrderId(
-            Long orderId
-    );
+    Optional<Delivery> findByOrderId(Long orderId);
+
+    Optional<Delivery> findByTrackingNumber(String trackingNumber);
 }

@@ -23,6 +23,9 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = true)
     private User user;
 
+    @Column(name = "email", nullable = true)
+    private String email;
+
     @Column(nullable = false)
     private String firstName;
 
@@ -49,6 +52,12 @@ public class Order {
 
     @Column(name = "delivery_charge", nullable = true)
     private Double deliveryFee = 0.0;
+
+    @Column(name = "delivery_method", nullable = true)
+    private String deliveryMethod = "STANDARD";
+
+    @Column(name = "discount", nullable = true)
+    private Double discount = 0.0;
 
     @Column(nullable = false)
     private Double totalAmount = 0.0;
@@ -90,8 +99,14 @@ public class Order {
         if (deliveryFee == null) {
             deliveryFee = 0.0;
         }
+        if (deliveryMethod == null || deliveryMethod.trim().isEmpty()) {
+            deliveryMethod = "STANDARD";
+        }
+        if (discount == null) {
+            discount = 0.0;
+        }
         if (totalAmount == null) {
-            totalAmount = subtotal + deliveryFee;
+            totalAmount = Math.max(0.0, (subtotal - discount) + deliveryFee);
         }
     }
 
@@ -101,6 +116,22 @@ public class Order {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getDeliveryMethod() {
+        return deliveryMethod != null ? deliveryMethod : "STANDARD";
+    }
+
+    public void setDeliveryMethod(String deliveryMethod) {
+        this.deliveryMethod = deliveryMethod;
+    }
+
+    public Double getDiscount() {
+        return discount != null ? discount : 0.0;
+    }
+
+    public void setDiscount(Double discount) {
+        this.discount = discount;
     }
 
     public User getUser() {
@@ -229,6 +260,14 @@ public class Order {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getEmail() {
+        return email != null ? email : (user != null ? user.getEmail() : null);
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public List<OrderItem> getItems() {

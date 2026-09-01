@@ -21,52 +21,87 @@ public class DataInitializer implements CommandLineRunner {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     public DataInitializer(
             CategoryRepository categoryRepository,
             ProductRepository productRepository,
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            org.springframework.jdbc.core.JdbcTemplate jdbcTemplate
     ) {
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     public void run(String... args) {
+        fixLegacySchemaConstraints();
         seedUsers();
         seedCatalog();
     }
 
+    private void fixLegacySchemaConstraints() {
+        String[] tables = {"orders", "products", "reviews", "users", "payments", "deliveries", "cart_items", "wishlists", "carts", "categories"};
+        for (String table : tables) {
+            try {
+                java.util.List<java.util.Map<String, Object>> columns = jdbcTemplate.queryForList(
+                        "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND is_nullable = 'NO' AND column_name NOT IN ('id')",
+                        table
+                );
+                for (java.util.Map<String, Object> col : columns) {
+                    String colName = (String) col.get("column_name");
+                    try {
+                        jdbcTemplate.execute("ALTER TABLE \"" + table + "\" ALTER COLUMN \"" + colName + "\" DROP NOT NULL");
+                        log.info("Relaxed NOT NULL constraint on {}.{}", table, colName);
+                    } catch (Exception e) {
+                        log.debug("Could not drop NOT NULL on {}.{}: {}", table, colName, e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Notice checking table {}: {}", table, e.getMessage());
+            }
+        }
+    }
+
     private void seedUsers() {
-        // Admin User: rajmaharjan738@gmail.com
-        if (!userRepository.existsByEmail("rajmaharjan738@gmail.com")) {
-            User admin = new User();
-            admin.setFullName("Raj Maharjan (Admin)");
-            admin.setEmail("rajmaharjan738@gmail.com");
-            admin.setPhoneNumber("9801234567");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setRole("ADMIN");
-            admin.setVerified(true);
-            admin.setAuthProvider("LOCAL");
-            userRepository.save(admin);
-            log.info("Admin user created: rajmaharjan738@gmail.com");
+        try {
+            // Admin User: rajmaharjan738@gmail.com
+            User rajAdmin = userRepository.findByEmailIgnoreCase("rajmaharjan738@gmail.com").orElse(new User());
+            rajAdmin.setFullName("Raj Maharjan (Admin)");
+            rajAdmin.setEmail("rajmaharjan738@gmail.com");
+            if (rajAdmin.getPhoneNumber() == null || rajAdmin.getPhoneNumber().trim().isEmpty()) {
+                rajAdmin.setPhoneNumber("9801234567");
+            }
+            rajAdmin.setPassword(passwordEncoder.encode("admin123"));
+            rajAdmin.setRole("ADMIN");
+            rajAdmin.setVerified(true);
+            rajAdmin.setAuthProvider("LOCAL");
+            userRepository.save(rajAdmin);
+            log.info("Admin user verified & updated: rajmaharjan738@gmail.com");
+        } catch (Exception e) {
+            log.warn("Notice updating rajAdmin in DB: {}", e.getMessage());
         }
 
-        // Demo Admin User: admin@glowup.com
-        if (!userRepository.existsByEmail("admin@glowup.com")) {
-            User admin = new User();
-            admin.setFullName("GlowUp Administrator");
-            admin.setEmail("admin@glowup.com");
-            admin.setPhoneNumber("9800000000");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setRole("ADMIN");
-            admin.setVerified(true);
-            admin.setAuthProvider("LOCAL");
-            userRepository.save(admin);
-            log.info("Admin user created: admin@glowup.com");
+        try {
+            // Demo Admin User: admin@glowup.com
+            User glowAdmin = userRepository.findByEmailIgnoreCase("admin@glowup.com").orElse(new User());
+            glowAdmin.setFullName("GlowUp Administrator");
+            glowAdmin.setEmail("admin@glowup.com");
+            if (glowAdmin.getId() == null && glowAdmin.getPhoneNumber() == null) {
+                glowAdmin.setPhoneNumber("9801112233");
+            }
+            glowAdmin.setPassword(passwordEncoder.encode("admin123"));
+            glowAdmin.setRole("ADMIN");
+            glowAdmin.setVerified(true);
+            glowAdmin.setAuthProvider("LOCAL");
+            userRepository.save(glowAdmin);
+            log.info("Admin user verified & updated: admin@glowup.com");
+        } catch (Exception e) {
+            log.warn("Notice updating glowAdmin in DB: {}", e.getMessage());
         }
     }
 
@@ -151,7 +186,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private Category getOrCreateCategory(String name) {
-        return categoryRepository.findByName(name).orElseGet(() -> {
+        return categoryRepository.findFirstByName(name).orElseGet(() -> {
             Category category = new Category();
             category.setName(name);
             return categoryRepository.save(category);

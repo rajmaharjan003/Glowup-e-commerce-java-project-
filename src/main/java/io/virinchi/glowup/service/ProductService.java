@@ -3,8 +3,10 @@ package io.virinchi.glowup.service;
 import io.virinchi.glowup.dto.ProductDto;
 import io.virinchi.glowup.entity.Category;
 import io.virinchi.glowup.entity.Product;
-import io.virinchi.glowup.repository.CategoryRepository;
-import io.virinchi.glowup.repository.ProductRepository;
+import io.virinchi.glowup.entity.Review;
+import io.virinchi.glowup.repository.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,12 +16,26 @@ import java.util.Optional;
 @Service
 public class ProductService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProductService.class);
+
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final CartItemRepository cartItemRepository;
+    private final WishlistRepository wishlistRepository;
+    private final ReviewRepository reviewRepository;
 
-    public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository) {
+    public ProductService(
+            ProductRepository productRepository,
+            CategoryRepository categoryRepository,
+            CartItemRepository cartItemRepository,
+            WishlistRepository wishlistRepository,
+            ReviewRepository reviewRepository
+    ) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.wishlistRepository = wishlistRepository;
+        this.reviewRepository = reviewRepository;
     }
 
     public List<Product> getAllProducts() {
@@ -31,7 +47,7 @@ public class ProductService {
     }
 
     public Optional<Product> getProductByName(String name) {
-        return productRepository.findByNameIgnoreCase(name);
+        return productRepository.findFirstByNameIgnoreCase(name);
     }
 
     public List<Product> searchProducts(String query) {
@@ -76,6 +92,42 @@ public class ProductService {
 
     @Transactional
     public void deleteProduct(Long id) {
-        productRepository.deleteById(id);
+        Product product = productRepository.findById(id).orElse(null);
+        if (product == null) {
+            return;
+        }
+
+        // 1. Delete cart items with this product
+        try {
+            cartItemRepository.findAll().stream()
+                    .filter(ci -> ci.getProduct() != null && ci.getProduct().getId().equals(id))
+                    .forEach(cartItemRepository::delete);
+        } catch (Exception e) {
+            log.warn("Notice cleaning cart items for product {}: {}", id, e.getMessage());
+        }
+
+        // 2. Delete wishlists with this product
+        try {
+            wishlistRepository.findAll().stream()
+                    .filter(w -> w.getProduct() != null && w.getProduct().getId().equals(id))
+                    .forEach(wishlistRepository::delete);
+        } catch (Exception e) {
+            log.warn("Notice cleaning wishlists for product {}: {}", id, e.getMessage());
+        }
+
+        // 3. Decouple reviews for this product
+        try {
+            List<Review> reviews = reviewRepository.findByProductIdOrderByCreatedAtDesc(id);
+            for (Review r : reviews) {
+                r.setProduct(null);
+                reviewRepository.save(r);
+            }
+        } catch (Exception e) {
+            log.warn("Notice decoupling reviews for product {}: {}", id, e.getMessage());
+        }
+
+        productRepository.delete(product);
+        log.info("Product #{} ({}) deleted successfully", id, product.getName());
     }
 }
+

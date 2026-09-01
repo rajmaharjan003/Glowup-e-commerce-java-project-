@@ -176,10 +176,18 @@ public class AuthService {
         // Check password
         boolean passwordMatches = false;
         try {
-            passwordMatches = passwordEncoder.matches(
-                    request.getPassword().trim(),
-                    user.getPassword()
-            );
+            if (user.getPassword() != null && (user.getPassword().startsWith("$2a$") || user.getPassword().startsWith("$2b$") || user.getPassword().startsWith("$2y$"))) {
+                passwordMatches = passwordEncoder.matches(
+                        request.getPassword().trim(),
+                        user.getPassword()
+                );
+            } else if (user.getPassword() != null && user.getPassword().equals(request.getPassword().trim())) {
+                // Transparently upgrade legacy plaintext password to BCrypt
+                passwordMatches = true;
+                user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+                userRepository.save(user);
+                log.info("Upgraded legacy plaintext password to BCrypt for user: {}", user.getEmail());
+            }
         } catch (Exception e) {
             log.error("Password matching error for user {}: {}", user.getEmail(), e.getMessage());
         }
@@ -192,6 +200,10 @@ public class AuthService {
         if (role == null || role.trim().isEmpty() || lowerInput.contains("admin") || lowerInput.equals("admin@glowup.com") || lowerInput.equals("rajmaharjan738@gmail.com")) {
             if (lowerInput.contains("admin") || lowerInput.equals("admin@glowup.com") || lowerInput.equals("rajmaharjan738@gmail.com")) {
                 role = "ADMIN";
+                if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                    user.setRole("ADMIN");
+                    userRepository.save(user);
+                }
             } else if (role == null || role.trim().isEmpty()) {
                 role = "CUSTOMER";
             }

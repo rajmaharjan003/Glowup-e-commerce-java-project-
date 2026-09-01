@@ -61,31 +61,43 @@ public class OrderService {
         if (!email.isEmpty()) {
             user = userRepository.findByEmailIgnoreCase(email).orElse(null);
             if (user == null) {
-                // Auto-create customer profile for guest checkout
-                user = new User();
-                user.setEmail(email);
-                String fName = request.getFirstName() != null ? request.getFirstName().trim() : "";
-                String lName = request.getLastName() != null ? request.getLastName().trim() : "";
-                user.setFullName((fName + " " + lName).trim().isEmpty() ? email.split("@")[0] : (fName + " " + lName).trim());
-                user.setPhoneNumber(request.getPhone() != null && !request.getPhone().trim().isEmpty() ? request.getPhone().trim() : "9800000000");
-                user.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
-                user.setAuthProvider("GUEST");
-                user.setRole("CUSTOMER");
-                user.setVerified(true);
-                user = userRepository.save(user);
+                // Auto-create customer profile for guest checkout safely
+                try {
+                    User newUser = new User();
+                    newUser.setEmail(email);
+                    String fName = request.getFirstName() != null ? request.getFirstName().trim() : "";
+                    String lName = request.getLastName() != null ? request.getLastName().trim() : "";
+                    newUser.setFullName((fName + " " + lName).trim().isEmpty() ? email.split("@")[0] : (fName + " " + lName).trim());
+                    
+                    String reqPhone = request.getPhone() != null && !request.getPhone().trim().isEmpty() ? request.getPhone().trim() : null;
+                    if (reqPhone != null && userRepository.findByPhoneNumber(reqPhone).isEmpty()) {
+                        newUser.setPhoneNumber(reqPhone);
+                    }
+                    
+                    newUser.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+                    newUser.setAuthProvider("GUEST");
+                    newUser.setRole("CUSTOMER");
+                    newUser.setVerified(true);
+                    user = userRepository.save(newUser);
+                    log.info("Created guest user record for email: {}", email);
+                } catch (Exception e) {
+                    log.warn("Notice creating guest user account: {}, continuing order placement", e.getMessage());
+                }
             }
         }
 
         Order order = new Order();
         order.setUser(user);
+        order.setEmail(!email.isEmpty() ? email : (user != null ? user.getEmail() : "customer@glowup.com"));
         order.setFirstName(request.getFirstName() != null && !request.getFirstName().trim().isEmpty() ? request.getFirstName().trim() : "Customer");
         order.setLastName(request.getLastName() != null ? request.getLastName().trim() : "");
-        order.setPhone(request.getPhone() != null ? request.getPhone().trim() : "");
+        order.setPhone(request.getPhone() != null && !request.getPhone().trim().isEmpty() ? request.getPhone().trim() : "9800000000");
         order.setAlternatePhone(request.getAlternatePhone());
-        order.setAddress(request.getAddress() != null ? request.getAddress().trim() : "Kathmandu");
-        order.setCity(request.getCity() != null ? request.getCity().trim() : "Kathmandu");
-        order.setProvince(request.getProvince() != null ? request.getProvince().trim() : "Bagmati Province");
+        order.setAddress(request.getAddress() != null && !request.getAddress().trim().isEmpty() ? request.getAddress().trim() : "Kathmandu");
+        order.setCity(request.getCity() != null && !request.getCity().trim().isEmpty() ? request.getCity().trim() : "Kathmandu");
+        order.setProvince(request.getProvince() != null && !request.getProvince().trim().isEmpty() ? request.getProvince().trim() : "Bagmati Province");
         order.setDeliveryNotes(request.getDeliveryNotes());
+        order.setDeliveryMethod(request.getDeliveryMethod() != null ? request.getDeliveryMethod().toUpperCase() : "STANDARD");
 
         String paymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().toUpperCase() : "COD";
         order.setPaymentMethod(paymentMethod);
@@ -111,7 +123,7 @@ public class OrderService {
                     product = productRepository.findById(itemReq.getProductId()).orElse(null);
                 }
                 if (product == null) {
-                    product = productRepository.findByNameIgnoreCase(pName).orElse(null);
+                    product = productRepository.findFirstByNameIgnoreCase(pName).orElse(null);
                 }
                 if (product == null) {
                     product = new Product();
@@ -191,7 +203,7 @@ public class OrderService {
         order.setItems(orderItems);
 
         Order savedOrder = orderRepository.save(order);
-        log.info("Order saved in DB: ID={}, Total={}", savedOrder.getId(), savedOrder.getTotalAmount());
+        log.info("Order saved successfully in DB: ID={}, Email={}, Total={}", savedOrder.getId(), savedOrder.getEmail(), savedOrder.getTotalAmount());
 
         // Create and save Payment entity
         Payment payment = new Payment();
@@ -201,7 +213,7 @@ public class OrderService {
         payment.setStatus(savedOrder.getPaymentStatus());
         payment.setTransactionId("TXN-" + System.currentTimeMillis() + "-" + savedOrder.getId());
         payment.setCreatedAt(LocalDateTime.now());
-        paymentRepository.save(payment);
+        Payment savedPayment = paymentRepository.save(payment);
 
         // Create and save Delivery entity
         Delivery delivery = new Delivery();
@@ -211,24 +223,23 @@ public class OrderService {
         delivery.setTrackingNumber("GLW-" + savedOrder.getId() + "-" + (System.currentTimeMillis() % 100000));
         delivery.setEstimatedDate(LocalDateTime.now().plusDays("EXPRESS".equalsIgnoreCase(request.getDeliveryMethod()) ? 1 : 3));
         delivery.setCreatedAt(LocalDateTime.now());
-        deliveryRepository.save(delivery);
+        Delivery savedDelivery = deliveryRepository.save(delivery);
 
-        // 1. Send Order Confirmation Email
-        String recipientEmail = !email.isEmpty() ? email : "rajmaharjan738@gmail.com";
-        try {
-            emailService.sendOrderConfirmation(recipientEmail, savedOrder);
-        } catch (Exception e) {
-            log.error("Failed to send order confirmation email: {}", e.getMessage());
-        }
+        // Send Email Confirmation Asynchronously so SMTP never blocks order response
+        final Order finalOrder = savedOrder;
+        final Payment finalPayment = savedPayment;
+        final String finalRecipient = !email.isEmpty() ? email : "rajmaharjan738@gmail.com";
 
-        // 2. If Paid (eSewa / Khalti / Fonepay), send Payment Confirmation Email
-        if ("PAID".equalsIgnoreCase(savedOrder.getPaymentStatus())) {
+        new Thread(() -> {
             try {
-                emailService.sendPaymentConfirmation(recipientEmail, savedOrder, payment);
+                emailService.sendOrderConfirmation(finalRecipient, finalOrder);
+                if ("PAID".equalsIgnoreCase(finalOrder.getPaymentStatus())) {
+                    emailService.sendPaymentConfirmation(finalRecipient, finalOrder, finalPayment);
+                }
             } catch (Exception e) {
-                log.error("Failed to send payment confirmation email: {}", e.getMessage());
+                log.error("Async email dispatch failed for Order #{}: {}", finalOrder.getId(), e.getMessage());
             }
-        }
+        }).start();
 
         return savedOrder;
     }
@@ -250,23 +261,30 @@ public class OrderService {
             if (o != null) return o;
         } catch (NumberFormatException ignored) {}
 
-        // 2. Try stripping GU- prefix (e.g. GU-1 -> 1)
-        String stripped = clean.replaceAll("(?i)^gu-", "").replaceAll("(?i)^\\d{4}-", "");
+        // 2. Try stripping #, GU-, GLW- prefixes (e.g. #GU-1 -> 1, GU-1 -> 1, #1 -> 1)
+        String stripped = clean.replaceAll("(?i)^#", "")
+                .replaceAll("(?i)^gu-", "")
+                .replaceAll("(?i)^glw-", "")
+                .replaceAll("(?i)^\\d{4}-", "");
         try {
             Long numId = Long.parseLong(stripped);
             Order o = orderRepository.findById(numId).orElse(null);
             if (o != null) return o;
         } catch (NumberFormatException ignored) {}
 
-        // 3. Try tracking number
+        // 3. Try tracking number lookup
         Delivery delivery = deliveryRepository.findByTrackingNumber(clean).orElse(null);
         if (delivery != null && delivery.getOrder() != null) {
             return delivery.getOrder();
         }
 
-        // 4. Try matching latest matching order
-        return orderRepository.findAll().stream()
-                .filter(o -> ("GU-" + o.getId()).equalsIgnoreCase(clean) || String.valueOf(o.getId()).equals(clean))
+        // 4. Try matching latest order by ID, tracking, phone or email
+        return orderRepository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(o -> ("GU-" + o.getId()).equalsIgnoreCase(clean) ||
+                             ("#GU-" + o.getId()).equalsIgnoreCase(clean) ||
+                             String.valueOf(o.getId()).equals(clean) ||
+                             (o.getEmail() != null && o.getEmail().equalsIgnoreCase(clean)) ||
+                             (o.getPhone() != null && o.getPhone().equals(clean)))
                 .findFirst().orElse(null);
     }
 
@@ -274,11 +292,22 @@ public class OrderService {
         if (email == null || email.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        User user = userRepository.findByEmailIgnoreCase(email.trim().toLowerCase()).orElse(null);
-        if (user == null) {
-            return new ArrayList<>();
+        String cleanEmail = email.trim().toLowerCase();
+        User user = userRepository.findByEmailIgnoreCase(cleanEmail).orElse(null);
+        
+        List<Order> orders = new ArrayList<>();
+        if (user != null) {
+            orders.addAll(orderRepository.findByUserOrderByCreatedAtDesc(user));
         }
-        return orderRepository.findByUserOrderByCreatedAtDesc(user);
+
+        // Also include any orders placed directly with this email
+        List<Order> emailOrders = orderRepository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(o -> cleanEmail.equalsIgnoreCase(o.getEmail()) || (o.getUser() != null && cleanEmail.equalsIgnoreCase(o.getUser().getEmail())))
+                .filter(o -> !orders.contains(o))
+                .toList();
+        orders.addAll(emailOrders);
+
+        return orders;
     }
 
     public List<Order> getAllOrders() {
@@ -286,11 +315,39 @@ public class OrderService {
     }
 
     public Delivery getDeliveryForOrder(Long orderId) {
-        return deliveryRepository.findByOrderId(orderId).orElse(null);
+        Delivery delivery = deliveryRepository.findByOrderId(orderId).orElse(null);
+        if (delivery == null) {
+            Order order = orderRepository.findById(orderId).orElse(null);
+            if (order != null) {
+                delivery = new Delivery();
+                delivery.setOrder(order);
+                delivery.setMethod("STANDARD");
+                delivery.setStatus("PREPARING");
+                delivery.setTrackingNumber("GLW-" + order.getId() + "-NEPAL");
+                delivery.setEstimatedDate(LocalDateTime.now().plusDays(3));
+                delivery.setCreatedAt(order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now());
+                delivery = deliveryRepository.save(delivery);
+            }
+        }
+        return delivery;
     }
 
     public Payment getPaymentForOrder(Long orderId) {
-        return paymentRepository.findByOrderId(orderId).orElse(null);
+        Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+        if (payment == null) {
+            Order order = orderRepository.findById(orderId).orElse(null);
+            if (order != null) {
+                payment = new Payment();
+                payment.setOrder(order);
+                payment.setMethod(order.getPaymentMethod());
+                payment.setAmount(order.getTotalAmount());
+                payment.setStatus(order.getPaymentStatus());
+                payment.setTransactionId("TXN-" + order.getId() + "-AUTO");
+                payment.setCreatedAt(order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now());
+                payment = paymentRepository.save(payment);
+            }
+        }
+        return payment;
     }
 
     @Transactional
@@ -302,8 +359,8 @@ public class OrderService {
         String normalizedStatus = newStatus != null ? newStatus.toUpperCase() : "PENDING";
         order.setOrderStatus(normalizedStatus);
 
-        Delivery delivery = deliveryRepository.findByOrderId(order.getId()).orElse(null);
-        Payment payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        Delivery delivery = getDeliveryForOrder(order.getId());
+        Payment payment = getPaymentForOrder(order.getId());
 
         if (delivery != null) {
             if ("SHIPPED".equalsIgnoreCase(normalizedStatus) || "OUT_FOR_DELIVERY".equalsIgnoreCase(normalizedStatus)) {
@@ -333,22 +390,24 @@ public class OrderService {
         Order updatedOrder = orderRepository.save(order);
         log.info("Order #{} status updated from {} to {}", orderId, oldStatus, normalizedStatus);
 
-        String recipientEmail = (order.getUser() != null && order.getUser().getEmail() != null)
-                ? order.getUser().getEmail()
-                : "rajmaharjan738@gmail.com";
+        String recipientEmail = (order.getEmail() != null && !order.getEmail().trim().isEmpty())
+                ? order.getEmail()
+                : (order.getUser() != null && order.getUser().getEmail() != null ? order.getUser().getEmail() : "rajmaharjan738@gmail.com");
 
-        // Trigger corresponding notification email based on status transition
-        try {
-            if ("SHIPPED".equalsIgnoreCase(normalizedStatus) || "OUT_FOR_DELIVERY".equalsIgnoreCase(normalizedStatus)) {
-                emailService.sendOrderShippedNotification(recipientEmail, updatedOrder, delivery);
-            } else if ("DELIVERED".equalsIgnoreCase(normalizedStatus)) {
-                emailService.sendOrderDeliveredNotification(recipientEmail, updatedOrder);
-            } else if ("CANCELLED".equalsIgnoreCase(normalizedStatus)) {
-                emailService.sendOrderCancelledNotification(recipientEmail, updatedOrder, reason);
+        final Delivery finalDel = delivery;
+        new Thread(() -> {
+            try {
+                if ("SHIPPED".equalsIgnoreCase(normalizedStatus) || "OUT_FOR_DELIVERY".equalsIgnoreCase(normalizedStatus)) {
+                    emailService.sendOrderShippedNotification(recipientEmail, updatedOrder, finalDel);
+                } else if ("DELIVERED".equalsIgnoreCase(normalizedStatus)) {
+                    emailService.sendOrderDeliveredNotification(recipientEmail, updatedOrder);
+                } else if ("CANCELLED".equalsIgnoreCase(normalizedStatus)) {
+                    emailService.sendOrderCancelledNotification(recipientEmail, updatedOrder, reason);
+                }
+            } catch (Exception e) {
+                log.error("Failed to send status update email for Order #{}: {}", orderId, e.getMessage());
             }
-        } catch (Exception e) {
-            log.error("Failed to send status update email for Order #{}: {}", orderId, e.getMessage());
-        }
+        }).start();
 
         return updatedOrder;
     }

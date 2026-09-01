@@ -1,5 +1,6 @@
 package io.virinchi.glowup.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,6 +28,7 @@ public class User {
     @Column(nullable = true)
     private String phoneNumber;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -36,9 +38,11 @@ public class User {
     @Column(nullable = true)
     private Boolean isVerified = true;
 
+    @JsonIgnore
     @Column(nullable = true)
     private String verificationToken;
 
+    @JsonIgnore
     @Column(nullable = true)
     private String resetOtp;
 

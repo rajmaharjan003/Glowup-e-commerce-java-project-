@@ -59,7 +59,7 @@ public class ReviewService {
             product = productRepository.findById(request.getProductId()).orElse(null);
         }
         if (product == null && request.getProductName() != null && !request.getProductName().trim().isEmpty()) {
-            product = productRepository.findByNameIgnoreCase(request.getProductName().trim()).orElse(null);
+            product = productRepository.findFirstByNameIgnoreCase(request.getProductName().trim()).orElse(null);
         }
 
         User user = null;

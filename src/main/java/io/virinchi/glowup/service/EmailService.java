@@ -24,14 +24,18 @@ public class EmailService {
     }
 
     private void sendEmail(String to, String subject, String body) {
+        if (to == null || to.trim().isEmpty() || !to.contains("@")) {
+            log.warn("Skipping email sending: invalid recipient address '{}'", to);
+            return;
+        }
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(to);
+            message.setTo(to.trim());
             message.setSubject(subject);
             message.setText(body);
             message.setFrom("rajmaharjan738@gmail.com");
             mailSender.send(message);
-            log.info("Email sent successfully to: {} | Subject: {}", to, subject);
+            log.info("Email sent successfully to: {} | Subject: {}", to.trim(), subject);
         } catch (Exception e) {
             log.error("Failed to send email to {}: {}", to, e.getMessage());
         }
@@ -287,5 +291,37 @@ public class EmailService {
     // ==========================================
     public void sendTestEmail(String to) {
         sendWelcomeEmail(to, "Test User");
+    }
+
+    public boolean sendEmailDirect(String to, String subject, String body) {
+        if (to == null || to.trim().isEmpty() || !to.contains("@")) {
+            log.warn("Skipping email sending: invalid recipient address '{}'", to);
+            return false;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to.trim());
+            message.setSubject(subject);
+            message.setText(body);
+            message.setFrom("rajmaharjan738@gmail.com");
+            mailSender.send(message);
+            log.info("Email sent successfully to: {} | Subject: {}", to.trim(), subject);
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to send email to {}: {}", to, e.getMessage(), e);
+            throw new RuntimeException("Gmail SMTP error: " + e.getMessage(), e);
+        }
+    }
+
+    public boolean sendTestEmailDirect(String to) {
+        String subject = "GlowUp Nepal — Test Email & System Verification 🚀";
+        String body = "Dear Valued User / Admin,\n\n" +
+                "This is a verified test email from GlowUp Nepal E-Commerce System.\n\n" +
+                "Your Spring Boot backend & Gmail SMTP relay are fully operational and connected!\n\n" +
+                "Timestamp: " + java.time.LocalDateTime.now() + "\n\n" +
+                "Best regards,\n" +
+                "GlowUp Nepal Automated Notification System\n" +
+                "http://localhost:8080";
+        return sendEmailDirect(to, subject, body);
     }
 }

@@ -25,9 +25,18 @@ public class CreateOrderRequest {
     private String paymentMethod;
     private String paymentStatus;
     private Double subtotal;
+    private Double discount = 0.0;
     private Double deliveryFee;
     private Double totalAmount;
     private List<OrderItemRequest> items = new ArrayList<>();
+
+    public Double getDiscount() {
+        return discount != null ? discount : 0.0;
+    }
+
+    public void setDiscount(Double discount) {
+        this.discount = discount;
+    }
 
     public String getEmail() {
         return email;

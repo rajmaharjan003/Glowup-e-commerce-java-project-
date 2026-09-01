@@ -17,4 +17,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findAllByOrderByCreatedAtDesc();
 
     List<Review> findByProductNameIgnoreCaseOrderByCreatedAtDesc(String productName);
+
+    List<Review> findByUser(io.virinchi.glowup.entity.User user);
+
+    List<Review> findByUserId(Long userId);
 }
